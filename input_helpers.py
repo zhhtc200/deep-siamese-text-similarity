@@ -10,8 +10,8 @@ reload(sys)
 
 
 class InputHelper(object):
-
-    def getTsvData(self, filepath):
+    @staticmethod
+    def getTsvData(filepath):
         print("Loading training data from " + filepath)
         x1 = []
         x2 = []
@@ -38,7 +38,8 @@ class InputHelper(object):
             y.append(0)  # np.array([1,0]))
         return np.asarray(x1), np.asarray(x2), np.asarray(y)
 
-    def getTsvTestData(self, filepath):
+    @staticmethod
+    def getTsvTestData(filepath):
         print("Loading testing/labelled data from " + filepath)
         x1 = []
         x2 = []

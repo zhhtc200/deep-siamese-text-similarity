@@ -1,9 +1,7 @@
-#! /usr/bin/env python
 from six.moves import xrange
 
 import tensorflow as tf
 import numpy as np
-import re
 import os
 import time
 import datetime
@@ -69,8 +67,7 @@ with tf.Graph().as_default():
             vocab_size=len(vocab_processor.vocabulary_),
             embedding_size=FLAGS.embedding_dim,
             hidden_units=FLAGS.hidden_units,
-            l2_reg_lambda=FLAGS.l2_reg_lambda,
-            batch_size=FLAGS.batch_size)
+            l2_reg_lambda=FLAGS.l2_reg_lambda)
 
         # Define Training procedure
         global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -95,9 +92,6 @@ with tf.Graph().as_default():
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=100)
-
-    # Write vocabulary
-    # vocab_processor.save(os.path.join(checkpoint_dir, "vocab"))
 
     # Initialize all variables
     sess.run(tf.global_variables_initializer())
@@ -157,15 +151,14 @@ with tf.Graph().as_default():
                 siameseModel.dropout_keep_prob: FLAGS.dropout_keep_prob,
             }
         step, loss, accuracy, dist = sess.run(
-            [global_step, siameseModel.loss, siameseModel.accuracy, siameseModel.distance], feed_dict)
+            [global_step, siameseModel.loss,
+             siameseModel.accuracy, siameseModel.distance], feed_dict)
         time_str = datetime.datetime.now().isoformat()
         d = np.copy(dist)
         d[d >= 0.5] = 999.0
         d[d < 0.5] = 1
         d[d > 1.0] = 0
         accuracy = np.mean(y_batch == d)
-        print("DEV {}: step {}, loss {:g}, acc {:g}".format(
-            time_str, step, loss, accuracy))
         return accuracy
 
     # Generate batches
@@ -183,7 +176,7 @@ with tf.Graph().as_default():
             continue
         train_step(x1_batch, x2_batch, y_batch)
         current_step = tf.train.global_step(sess, global_step)
-        sum_acc = 0.0
+        sum_acc = []
         if current_step % FLAGS.evaluate_every == 0:
             print("\nEvaluation:")
             dev_batches = inpH.batch_iter(
@@ -195,12 +188,15 @@ with tf.Graph().as_default():
                 if len(y_dev_b) < 1:
                     continue
                 acc = dev_step(x1_dev_b, x2_dev_b, y_dev_b)
-                sum_acc = sum_acc + acc
+                sum_acc.append(acc)
+            time_str = datetime.datetime.now().isoformat()
+            print("TEST {}: step {}, mean acc {:g}".format(
+                time_str, nn, np.mean(sum_acc)))
         if current_step % FLAGS.checkpoint_every == 0:
-            if sum_acc >= max_validation_acc:
-                max_validation_acc = sum_acc
+            if np.mean(sum_acc) >= max_validation_acc:
+                max_validation_acc = np.mean(sum_acc)
                 saver.save(sess, checkpoint_prefix, global_step=current_step)
                 tf.train.write_graph(sess.graph.as_graph_def(
                 ), checkpoint_prefix, "graph" + str(nn) + ".pb", as_text=False)
-                print("Saved model {} with sum_accuracy={} checkpoint to {}\n".format(
+                print("Saved model {} with mean_accuracy={} checkpoint to {}\n".format(
                     nn, max_validation_acc, checkpoint_prefix))
